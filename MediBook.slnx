@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="Data/Data.csproj" />
+  <Project Path="Infra/Infra.csproj" />
+  <Project Path="MediBookAPI/MediBookAPI.csproj" />
+  <Project Path="UnitTesting/UnitTesting.csproj" />
+</Solution>
