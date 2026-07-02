@@ -7,7 +7,7 @@ services:
             - "8080:8080"
         environment:
             - ASPNETCORE_ENVIRONMENT=Development
-            - ConnectionStrings_DefaultConnection=Host=db;Port=5432;Database=${DB_NAME};Username=${DB_USER};Password=${DB_PASSWORD};
+            - ConnectionStrings__DefaultConnection=Host=db;Port=5432;Database=${DB_NAME};Username=${DB_USER};Password=${DB_PASSWORD};
         depends_on:
             db:
                 condition: service_healthy
@@ -22,7 +22,7 @@ services:
         volumes:
           - medibook-db-data:/var/lib/postgresql/data
         healthcheck:
-            test: ["CMD-SHELL", "pg_isread -U postgres"]
+            test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
             interval: 5s
             timeout: 30s
             retries: 5
