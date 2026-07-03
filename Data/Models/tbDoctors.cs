@@ -20,12 +20,12 @@ namespace Data.Models
         public string? Phone_Number { get; set; }
         public bool Is_Active { get; set; } = true;
         [Required]
-        public required DateTime Created_At { get; set; }
+        public required DateTimeOffset Created_At { get; set; }
         [Required]
-        public required DateTime Updated_At { get; set; }
+        public required DateTimeOffset Updated_At { get; set; }
 
         public ICollection<tbUsers> Users { get; set; } = new List<tbUsers>();
         public ICollection<tbSlots> Slots { get; set; } = new List<tbSlots>();
-        public ICollection<tbAppointmentscs> Appointments { get; set; } = new List<tbAppointmentscs>();
+        public ICollection<tbAppointments> Appointments { get; set; } = new List<tbAppointments>();
     }
 }

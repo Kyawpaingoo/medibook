@@ -21,13 +21,13 @@ namespace Data.Models
         [Required]
         public required SlotStatus Status { get; set; }
         [Required]
-        public required DateTime Created_At { get; set; }
+        public required DateTimeOffset Created_At { get; set; }
         [Required]
-        public required DateTime Updated_At { get; set; }
+        public required DateTimeOffset Updated_At { get; set; }
 
         public tbDoctors Doctor { get; set; } = null!;
         // Not one-to-one: only one Reserved/Confirmed appointment is allowed per slot
         // (enforced by a partial unique index), but cancelled/rebooked history can add more rows.
-        public ICollection<tbAppointmentscs> Appointments { get; set; } = new List<tbAppointmentscs>();
+        public ICollection<tbAppointments> Appointments { get; set; } = new List<tbAppointments>();
     }
 }

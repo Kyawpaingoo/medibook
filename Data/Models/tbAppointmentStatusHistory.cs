@@ -16,10 +16,10 @@ namespace Data.Models
         [Required]
         public required AppointmentStatus To_Status { get; set; }
         [Required]
-        public required DateTime Changed_At { get; set; }
+        public required DateTimeOffset Changed_At { get; set; }
         public Guid? Changed_By_User_Id { get; set; }
 
-        public tbAppointmentscs Appointment { get; set; } = null!;
+        public tbAppointments Appointment { get; set; } = null!;
         public tbUsers? ChangedByUser { get; set; }
     }
 }

@@ -8,7 +8,7 @@ using System.Text;
 namespace Data.Models
 {
     [Table("tbAppointments")]
-    public class tbAppointmentscs
+    public class tbAppointments
     {
         [Key]
         public Guid Id { get; set; }
@@ -21,9 +21,9 @@ namespace Data.Models
         [Required]
         public required AppointmentStatus Status { get; set; }
         [Required]
-        public required DateTime Created_At { get; set; }
+        public required DateTimeOffset Created_At { get; set; }
         [Required]
-        public required DateTime Updated_At { get; set; }
+        public required DateTimeOffset Updated_At { get; set; }
 
         public tbSlots Slot { get; set; } = null!;
         public tbDoctors Doctor { get; set; } = null!;

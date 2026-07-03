@@ -19,7 +19,7 @@ namespace Data.Models
         public string? Refresh_Token { get; set; }
         public DateTime? Refresh_Token_Expiry { get; set; }
         [Required]
-        public required DateTime Created_At { get; set; }
+        public required DateTimeOffset Created_At { get; set; }
 
         public tbDoctors? Doctor { get; set; }
     }

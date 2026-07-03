@@ -10,6 +10,8 @@ namespace Infra.Utility
     {
         public static async Task<Model<T>> getPaging(int page, int pageSize, IQueryable<T> result, string additionaldata = "")
         {
+            page = page < 1 ? 1 : page;
+            pageSize = pageSize < 1 ? 10 : pageSize;
             try
             {
                 var totalCount = result.Count();
@@ -33,6 +35,8 @@ namespace Infra.Utility
 
         public static async Task<Model<T>> getPagingList(int page, int pageSize, List<T> result, string additionaldata = "")
         {
+            page = page < 1 ? 1 : page;
+            pageSize = pageSize < 1 ? 10 : pageSize;
             try
             {
                 var totalCount = result.Count();

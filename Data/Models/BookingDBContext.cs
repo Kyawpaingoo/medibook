@@ -9,7 +9,7 @@ namespace Data.Models
         {
 
         }
-        public virtual DbSet<tbAppointmentscs> tbAppointments { get; set; }
+        public virtual DbSet<tbAppointments> tbAppointments { get; set; }
         public virtual DbSet<tbAppointmentStatusHistory> tbAppointmentStatusHistory { get; set; }
         public virtual DbSet<tbPatients> tbPatients { get; set; }
         public virtual DbSet<tbSlots> tbSlots { get; set; }
@@ -71,7 +71,7 @@ namespace Data.Models
             });
 
             // ---------- Appointments ----------
-            modelBuilder.Entity<tbAppointmentscs>(entity =>
+            modelBuilder.Entity<tbAppointments>(entity =>
             {
                 entity.Property(a => a.Status)
                     .HasConversion<string>()
