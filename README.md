@@ -71,6 +71,178 @@ MediBookAPI
 
 ---
 
+## Database Structure
+
+MediBook uses PostgreSQL as the source of truth and Redis as a disposable cache-aside layer — Redis never owns data, it only speeds up the one hot read path (available slots per doctor).
+
+### Entity relationship diagram
+
+```mermaid
+erDiagram
+    DOCTORS ||--o{ SLOTS : has
+    DOCTORS |o--o| USERS : "linked login"
+    DOCTORS ||--o{ APPOINTMENTS : treats
+    PATIENTS ||--o{ APPOINTMENTS : books
+    SLOTS |o--o| APPOINTMENTS : "booked as"
+    APPOINTMENTS ||--o{ APPOINTMENT_STATUS_HISTORY : logs
+    USERS |o--o{ APPOINTMENT_STATUS_HISTORY : "changed by"
+ 
+    USERS {
+        uuid id PK
+        string email UK
+        string password_hash
+        string role "Admin, Doctor, or Staff"
+        uuid doctor_id FK "nullable, set only when role = Doctor"
+        string refresh_token
+        timestamptz refresh_token_expiry
+    }
+    DOCTORS {
+        uuid id PK
+        string full_name
+        string specialization
+        string email UK
+        string phone_number
+        bool is_active
+        timestamptz created_at
+    }
+    PATIENTS {
+        uuid id PK
+        string full_name
+        string email UK
+        string phone_number
+        date date_of_birth
+        timestamptz created_at
+    }
+    SLOTS {
+        uuid id PK
+        uuid doctor_id FK
+        timestamptz start_time
+        timestamptz end_time
+        string status "Available, Reserved, Confirmed, Cancelled"
+        timestamptz created_at
+    }
+    APPOINTMENTS {
+        uuid id PK
+        uuid slot_id FK
+        uuid doctor_id FK
+        uuid patient_id FK
+        string status "Reserved, Confirmed, Cancelled"
+        timestamptz created_at
+    }
+    APPOINTMENT_STATUS_HISTORY {
+        bigint id PK
+        uuid appointment_id FK
+        string from_status
+        string to_status
+        timestamptz changed_at
+        uuid changed_by_user_id FK "null = system-triggered"
+    }
+```
+
+### PostgreSQL DDL
+
+```sql
+CREATE TABLE users (
+    id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email                VARCHAR(150) NOT NULL UNIQUE,
+    password_hash        TEXT NOT NULL,
+    role                 VARCHAR(20) NOT NULL CHECK (role IN ('Admin','Doctor','Staff')),
+    doctor_id            UUID REFERENCES doctors(id),
+    refresh_token        TEXT,
+    refresh_token_expiry TIMESTAMPTZ,
+    created_at           TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ 
+CREATE TABLE doctors (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    full_name       VARCHAR(150) NOT NULL,
+    specialization  VARCHAR(100) NOT NULL,
+    email           VARCHAR(150) NOT NULL UNIQUE,
+    phone_number    VARCHAR(30),
+    is_active       BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ 
+CREATE TABLE patients (
+    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    full_name      VARCHAR(150) NOT NULL,
+    email          VARCHAR(150) NOT NULL UNIQUE,
+    phone_number   VARCHAR(30),
+    date_of_birth  DATE,
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ 
+CREATE TABLE slots (
+    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    doctor_id     UUID NOT NULL REFERENCES doctors(id),
+    start_time    TIMESTAMPTZ NOT NULL,
+    end_time      TIMESTAMPTZ NOT NULL,
+    status        VARCHAR(20) NOT NULL DEFAULT 'Available'
+                    CHECK (status IN ('Available','Reserved','Confirmed','Cancelled')),
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT uq_doctor_slot_time UNIQUE (doctor_id, start_time)
+);
+ 
+CREATE TABLE appointments (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    slot_id         UUID NOT NULL REFERENCES slots(id),
+    doctor_id       UUID NOT NULL REFERENCES doctors(id),
+    patient_id      UUID NOT NULL REFERENCES patients(id),
+    status          VARCHAR(20) NOT NULL DEFAULT 'Reserved'
+                      CHECK (status IN ('Reserved','Confirmed','Cancelled')),
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ 
+-- Defense-in-depth against double booking: only one active appointment per slot
+CREATE UNIQUE INDEX uq_active_appointment_per_slot
+    ON appointments (slot_id)
+    WHERE status IN ('Reserved','Confirmed');
+ 
+CREATE TABLE appointment_status_history (
+    id                 BIGSERIAL PRIMARY KEY,
+    appointment_id     UUID NOT NULL REFERENCES appointments(id),
+    from_status        VARCHAR(20),
+    to_status          VARCHAR(20) NOT NULL,
+    changed_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+    changed_by_user_id UUID REFERENCES users(id)
+);
+```
+
+### Indexes
+
+| Index | Table | Purpose |
+|---|---|---|
+| `uq_doctor_slot_time` on `(doctor_id, start_time)` | slots | A doctor can't have two slots starting at the same instant |
+| `idx_slots_doctor_status_start` on `(doctor_id, status, start_time)` | slots | Backs the hottest query: available slots for a doctor, ordered by time |
+| `uq_active_appointment_per_slot` (partial, unique) on `slot_id` where status in `('Reserved','Confirmed')` | appointments | The actual double-booking guard — a cancelled appointment frees the slot for rebooking |
+| `idx_appointments_doctor` on `doctor_id` | appointments | Doctor's booking dashboard |
+| `idx_appointments_patient` on `patient_id` | appointments | Patient's own booking history |
+| `idx_status_history_appointment` on `appointment_id` | appointment_status_history | Full audit trail for a single booking |
+| `idx_status_history_changed_by` on `changed_by_user_id` | appointment_status_history | Auditing which staff/admin/doctor made a change |
+
+### Concurrency control
+
+Double-booking prevention uses two independent layers:
+
+1. **Optimistic concurrency via `xmin`** — `slots` and `appointments` are configured with `UseXminAsConcurrencyToken()` in EF Core, using Postgres' built-in `xmin` system column instead of a hand-maintained row-version column. Every `UPDATE` EF generates includes `WHERE xmin = <value read at load time>`; if a concurrent request already changed the row, the update affects zero rows and EF throws `DbUpdateConcurrencyException`, which the service layer turns into a `409 Conflict`.
+2. **Partial unique index** (`uq_active_appointment_per_slot`) — a database-level guarantee that survives even outside the EF Core write path.
+### Redis schema (cache-aside)
+
+Redis is never the source of truth — only Postgres is. Cached data is disposable and always safe to drop.
+
+| Key pattern | Value | TTL | Invalidated on |
+|---|---|---|---|
+| `slots:available:doctor:{doctorId}` | JSON array of `{ slotId, startTime, endTime }` | 5 min | Any booking or cancellation for that doctor |
+| `doctor:{doctorId}:profile` | JSON of doctor name/specialization | 1 hr | Doctor profile update |
+
+Patient PII (name, email, phone) is intentionally never cached in Redis — only slot availability and doctor profile data, neither of which is sensitive.
+ 
+---
+
 ## Key Features
 
 ### 1. Redis Cache-Aside for Slot Availability
