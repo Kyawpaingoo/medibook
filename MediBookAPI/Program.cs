@@ -1,8 +1,11 @@
 using Data.Models;
+using Infra.Services;
 using Infra.UnitOfWork;
+using Infra.Utility;
 using MediBookAPI.Services.DoctorServices;
 using MediBookAPI.Services.HealthServices;
 using Microsoft.EntityFrameworkCore;
+using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -15,6 +18,11 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddDbContext<BookingDBContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
+builder.Services.AddSingleton<IConnectionMultiplexer>(sp => 
+    ConnectionMultiplexer.Connect(builder.Configuration.GetConnectionString("Redis")!));
+
+builder.Services.AddScoped<ICacheService, RedisCacheService>();
+builder.Services.AddScoped<SlotAvailabilityHelper>();
 builder.Services.AddScoped<IBookingUnitOfWork, BookingUnitOfWork>();
 builder.Services.AddScoped<IDoctorService, DoctorService>();
 builder.Services.AddScoped<IHealthService, HealthService>();

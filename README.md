@@ -1,6 +1,6 @@
 # 🏥 MediBook — Clinic Appointment Booking API
 
-A production-style REST API for clinic appointment booking built with ASP.NET Core 8. Designed to handle real-world booking challenges — slot availability caching, double-booking prevention under concurrent load, and automated cloud deployment.
+A production-style REST API for clinic appointment booking built with ASP.NET Core 10. Designed to handle real-world booking challenges — slot availability caching, double-booking prevention under concurrent load, and automated cloud deployment.
 
 ## Live Demo
 > 🔗 `https://medibook-api-xxxxx.a.run.app/swagger` *(update after deploy)*
@@ -357,8 +357,8 @@ cd medibook
 docker-compose up
 ```
 
-API available at `http://localhost:8080`
-Swagger UI at `http://localhost:8080/swagger`
+API available at `http://localhost:8081`
+Swagger UI at `http://localhost:8081/swagger`
 
 ---
 
@@ -366,7 +366,7 @@ Swagger UI at `http://localhost:8080/swagger`
 
 ```bash
 # Book an appointment
-curl -X POST http://localhost:8080/api/appointments \
+curl -X POST http://localhost:8081/api/appointments \
   -H "Content-Type: application/json" \
   -d '{
     "doctorId": 1,
