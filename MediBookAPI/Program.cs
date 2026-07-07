@@ -1,11 +1,17 @@
 using Data.Models;
 using Infra.Services;
+using Infra.Services.JwtTokens;
 using Infra.UnitOfWork;
 using Infra.Utility;
+using MediBookAPI.Seeding;
+using MediBookAPI.Services.AuthServices;
 using MediBookAPI.Services.DoctorServices;
 using MediBookAPI.Services.HealthServices;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using StackExchange.Redis;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -13,12 +19,17 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options =>
+{
+    // Infers the JWT bearer scheme from the AddJwtBearer() setup below and adds the
+    // "Authorize" button in Swagger UI, so protected endpoints like /api/auth/revoke can be tested.
+    options.InferSecuritySchemes();
+});
 
 builder.Services.AddDbContext<BookingDBContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-builder.Services.AddSingleton<IConnectionMultiplexer>(sp => 
+builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
     ConnectionMultiplexer.Connect(builder.Configuration.GetConnectionString("Redis")!));
 
 builder.Services.AddScoped<ICacheService, RedisCacheService>();
@@ -26,6 +37,34 @@ builder.Services.AddScoped<SlotAvailabilityHelper>();
 builder.Services.AddScoped<IBookingUnitOfWork, BookingUnitOfWork>();
 builder.Services.AddScoped<IDoctorService, DoctorService>();
 builder.Services.AddScoped<IHealthService, HealthService>();
+builder.Services.AddScoped<ITokenService, TokenService>();
+builder.Services.AddScoped<IAuthService, AuthService>();
+
+builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("Jwt"));
+var jwtSettings = builder.Configuration.GetSection("Jwt").Get<JwtSettings>()
+    ?? throw new InvalidOperationException("Jwt configuration section is missing.");
+
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer = true,
+        ValidIssuer = jwtSettings.Issuer,
+        ValidateAudience = true,
+        ValidAudience = jwtSettings.Audience,
+        ValidateIssuerSigningKey = true,
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.Key)),
+        ValidateLifetime = true,
+        ClockSkew = TimeSpan.Zero
+    };
+});
+
+builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
@@ -46,8 +85,11 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+
+await DbSeeder.SeedSuperAdminAsync(app.Services);
 
 app.Run();

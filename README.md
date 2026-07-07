@@ -344,6 +344,10 @@ MediBook/
 | `POST` | `/api/appointments` | Book a slot                                   |
 | `GET` | `/api/appointments/{id}` | Get booking details                           |
 | `DELETE` | `/api/appointments/{id}` | Cancel a booking                              |
+| `POST` | `/api/auth/register` | Register a new user account                   |
+| `POST` | `/api/auth/login` | Log in and receive an access/refresh token pair |
+| `POST` | `/api/auth/refresh-token` | Exchange an expired access token + refresh token for a new pair |
+| `POST` | `/api/auth/revoke` | Revoke the current user's refresh token (requires auth) |
 | `GET` | `/health` | Liveness probe                                |
 | `GET` | `/health/ready` | Readiness — checks PostgreSQL + Redis         |
 
@@ -359,6 +363,26 @@ docker-compose up
 
 API available at `http://localhost:8081`
 Swagger UI at `http://localhost:8081/swagger`
+
+### Default super admin account
+
+On every startup, `DbSeeder.SeedSuperAdminAsync` (see [`MediBookAPI/Seeding/DbSeeder.cs`](MediBookAPI/Seeding/DbSeeder.cs)) checks for a user matching `SuperAdmin:Email` in configuration and, if none exists yet, creates one with the `Admin` role using a BCrypt-hashed `SuperAdmin:Password`. It's idempotent — it no-ops once the account exists — and skips entirely if either setting is missing, so it stays off by default outside of local development.
+
+For local development (`appsettings.Development.json`), the seeded credentials are:
+
+| Field | Value |
+|---|---|
+| Email | `superadmin@medibook.com` |
+| Password | `SuperAdmin@2026!` |
+| Role | `Admin` |
+
+```bash
+curl -X POST http://localhost:8081/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{ "email": "superadmin@medibook.com", "password": "SuperAdmin@2026!" }'
+```
+
+⚠️ These are development-only defaults committed for convenience. Before deploying anywhere beyond local dev, set `SuperAdmin:Password` (and rotate `Jwt:Key`) via environment variables or a secrets manager instead of a checked-in `appsettings.*.json`.
 
 ---
 

@@ -23,6 +23,10 @@ namespace Data.Models
             // ---------- Users ----------
             modelBuilder.Entity<tbUsers>(entity =>
             {
+                entity.Property(u => u.Id)
+                    .HasDefaultValueSql("gen_random_uuid()")
+                    .ValueGeneratedOnAdd();
+
                 entity.Property(u => u.Role)
                     .HasConversion<string>()
                     .HasMaxLength(20);
