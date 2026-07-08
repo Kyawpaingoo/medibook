@@ -17,5 +17,6 @@ namespace Data.Enums
         public const string Error = "Error";
         public const string Fail = "Failed";
         public const string DoestNotExist = "DoesNotExist"; 
+        public const string Conflict = "Conflict";
     }
 }

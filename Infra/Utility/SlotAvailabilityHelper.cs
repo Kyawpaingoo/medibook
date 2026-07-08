@@ -39,4 +39,6 @@ public class SlotAvailabilityHelper
         
         return result;
     }
+    
+    public Task InvalidateAsync(Guid doctorId) => _cacheService.RemoveAsync(CacheKey(doctorId));
 }

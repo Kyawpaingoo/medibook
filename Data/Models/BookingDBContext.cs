@@ -71,7 +71,13 @@ namespace Data.Models
                 // Supports the hottest read path: "available slots for doctor X in a time range".
                 entity.HasIndex(s => new { s.Doctor_Id, s.Status, s.Start_Time });
 
-                entity.ToTable(t => t.HasCheckConstraint("CK_Slots_Status", "\"Status\" IN ('Available','Reserved','Confirmed','Cancelled')"));
+                entity.ToTable(t => t.HasCheckConstraint("CK_Slots_Status", 
+                    "\"Status\" IN ('Available','Reserved','Confirmed','Cancelled')"));
+                
+                entity.Property<uint>("xmin")
+                    .HasColumnType("xid")
+                    .ValueGeneratedOnAddOrUpdate()
+                    .IsConcurrencyToken();
             });
 
             // ---------- Appointments ----------
@@ -102,7 +108,13 @@ namespace Data.Models
                     .HasFilter("\"Status\" IN ('Reserved','Confirmed')")
                     .HasDatabaseName("uq_active_appointment_per_slot");
 
-                entity.ToTable(t => t.HasCheckConstraint("CK_Appointments_Status", "\"Status\" IN ('Reserved','Confirmed','Cancelled')"));
+                entity.ToTable(t => t.HasCheckConstraint("CK_Appointments_Status", 
+                    "\"Status\" IN ('Reserved','Confirmed','Cancelled')"));
+                
+                entity.Property<uint>("xmin")
+                    .HasColumnType("xid")
+                    .ValueGeneratedOnAddOrUpdate()
+                    .IsConcurrencyToken();
             });
 
             // ---------- Appointment status history ----------
