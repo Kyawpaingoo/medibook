@@ -269,63 +269,97 @@ No long-lived service account keys stored as GitHub secrets. Authentication betw
 
 ```
 MediBook/
-├── MediBook.Data/
-│   ├── Models/
-│   │   ├── tbAppointment.cs
-│   │   ├── tbDoctor.cs
-│   │   └── tbSlot.cs
-│   │   └── tbPatients.cs
-│   │   └── tbUsers.cs
-│   │   └── tbAppointmentStatusHistory.cs
-│   │   └── BookingDBContext.cs
+├── Data/
 │   ├── Dtos/
 │   │   ├── AppointmentDtos.cs
-│   │   └── DoctorDtos.cs
+│   │   ├── AuthDtos.cs
+│   │   ├── DoctorDtos.cs
+│   │   └── SlotDtos.cs
+│   ├── Enums/
+│   │   ├── Data.cs
+│   │   └── Status.cs
 │   ├── Migrations/
-│   └── MediBook.Data.csproj
+│   │   ├── 20260702043826_InitialCreate.cs
+│   │   ├── 20260707083244_AddUserIdDefaultGuidGeneration.cs
+│   │   ├── 20260708144525_AddXminConcurrencyToken.cs
+│   │   └── BookingDBContextModelSnapshot.cs
+│   ├── Models/
+│   │   ├── BookingDBContext.cs
+│   │   ├── tbAppointments.cs
+│   │   ├── tbAppointmentStatusHistory.cs
+│   │   ├── tbDoctors.cs
+│   │   ├── tbPatients.cs
+│   │   ├── tbSlots.cs
+│   │   └── tbUsers.cs
+│   └── Data.csproj
 │
-├── MediBook.Infra/
-│   ├── Repositories/
+├── Infra/
+│   ├── Repository/
 │   │   ├── IRepository.cs
-│   │   ├── Repository.cs
-│   ├── UnitOfWork/
-│   │   ├── IUnitOfWork.cs
-│   │   └── UnitOfWork.cs
-│   ├── Caching/
-│   │   ├── ICacheService.cs
-│   │   └── RedisCacheService.cs
-│   ├── Helpers/
-│   │   └── SlotAvailabilityHelper.cs
-│   └── MediBook.Infra.csproj
-│
-├── MediBook.Api/
-│   ├── Controllers/
-│   │   ├── AppointmentsController.cs
-│   │   ├── DoctorsController.cs
-│   │   └── HealthController.cs
+│   │   └── Repository.cs
 │   ├── Services/
-│   │   ├── IAppointmentService.cs
-│   │   ├── AppointmentService.cs
-│   │   └── HealthServices/
-│   │       ├── IHealthService.cs
-│   │       └── HealthService.cs
+│   │   ├── JwtTokens/
+│   │   │   ├── ITokenService.cs
+│   │   │   ├── JwtSettings.cs
+│   │   │   └── TokenService.cs
+│   │   └── Redis/
+│   │       ├── ICacheService.cs
+│   │       └── RedisCacheService.cs
+│   ├── UnitOfWork/
+│   │   ├── IBookingUnitOfWork.cs
+│   │   └── BookingUnitOfWork.cs
+│   ├── Utility/
+│   │   ├── Helper.cs
+│   │   ├── PagingService.cs
+│   │   └── SlotAvailabilityHelper.cs
+│   └── Infra.csproj
+│
+├── MediBookAPI/
+│   ├── Controllers/
+│   │   ├── AppointmentController.cs
+│   │   ├── AuthController.cs
+│   │   ├── DoctorController.cs
+│   │   ├── HealthController.cs
+│   │   └── SlotsController.cs
+│   ├── Seeding/
+│   │   └── DbSeeder.cs
+│   ├── Services/
+│   │   ├── AppointmentServices/
+│   │   │   ├── IAppointmentService.cs
+│   │   │   └── AppointmentService.cs
+│   │   ├── AuthServices/
+│   │   │   ├── IAuthService.cs
+│   │   │   └── AuthService.cs
+│   │   ├── DoctorServices/
+│   │   │   ├── IDoctorService.cs
+│   │   │   └── DoctorService.cs
+│   │   ├── HealthServices/
+│   │   │   ├── IHealthService.cs
+│   │   │   └── HealthService.cs
+│   │   └── SlotServices/
+│   │       ├── ISlotService.cs
+│   │       └── SlotService.cs
 │   ├── Program.cs
 │   ├── appsettings.json
-│   └── MediBook.Api.csproj
+│   └── MediBookAPI.csproj
 │
-├── MediBook.Tests/
-│   ├── AppointmentServiceTests.cs
-│   ├── AppointmentRepositoryTests.cs
-│   └── MediBook.Tests.csproj
+├── UnitTesting/
+│   ├── AppointmentTestService.cs
+│   ├── AuthServiceTests.cs
+│   ├── ConcurrencyConfigurationTest.cs
+│   ├── DoctorServiceTests.cs
+│   ├── FakeCacheService.cs
+│   ├── MigrationDriftTests.cs
+│   ├── SlotServiceTest.cs
+│   └── UnitTesting.csproj
 │
 ├── .github/
 │   └── workflows/
-│       └── ci-cd.yml
 ├── Dockerfile
 ├── docker-compose.yml
 ├── .dockerignore
 ├── .gitignore
-├── MediBook.sln
+├── MediBook.slnx
 └── README.md
 ```
 
@@ -341,9 +375,14 @@ MediBook/
 | `PUT` | `/api/doctor/update` | Update doctor data                            |
 | `DELETE` | `/api/doctor/softdelete?id={guid}` | Deactivate a doctor (soft delete)             |
 | `DELETE` | `/api/doctor/harddelete?id={guid}` | Permanently delete a doctor                   |
-| `POST` | `/api/appointments` | Book a slot                                   |
-| `GET` | `/api/appointments/{id}` | Get booking details                           |
-| `DELETE` | `/api/appointments/{id}` | Cancel a booking                              |
+| `POST` | `/api/appointment` | Book a slot (creates a Reserved appointment)   |
+| `GET` | `/api/appointment/{id}` | Get booking details                           |
+| `PUT` | `/api/appointment/{id}/confirm?changedByUserId={guid}` | Confirm a reserved appointment |
+| `DELETE` | `/api/appointment/{id}?changedByUserId={guid}` | Cancel a booking (frees the slot back up) |
+| `POST` | `/api/slots/create` | Create a new slot for a doctor                |
+| `GET` | `/api/slots/getbyid?id={guid}` | Get a single slot by ID                       |
+| `GET` | `/api/slots/available?doctorId={guid}` | List a doctor's available slots (Redis cache-aside) |
+| `DELETE` | `/api/slots/cancel?id={guid}` | Cancel a still-available slot                 |
 | `POST` | `/api/auth/register` | Register a new user account                   |
 | `POST` | `/api/auth/login` | Log in and receive an access/refresh token pair |
 | `POST` | `/api/auth/refresh-token` | Exchange an expired access token + refresh token for a new pair |
@@ -420,4 +459,4 @@ curl -X POST http://localhost:8081/api/appointments \
 
 ---
 
-Built by Kevin · [LinkedIn](https://linkedin.com/in/kyaw-paing-oo-dev) · [GitHub](https://github.com/Kyawpaingoo)
+Built by Kyaw Paing Oo · [LinkedIn](https://linkedin.com/in/kyaw-paing-oo-dev) · [GitHub](https://github.com/Kyawpaingoo)
